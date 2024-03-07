@@ -84,16 +84,32 @@ func main() {
 	vFlag := flag.Bool("v", false, "invert")
 	FFlag := flag.Bool("F", false, "fixed")
 	nFlag := flag.Bool("n", false, "line num")
+	rFlag := flag.Bool("r", false, "read from stdin")
 
 	flag.Parse()
 
-	pattern, fileName := flag.Arg(0), flag.Arg(1)
-
-	linesInput, err := ReadLines(fileName)
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
+	var linesInput []string
+	var err error
+	pattern := flag.Arg(0)
+	if !*rFlag {
+		fileName := flag.Arg(1)
+		linesInput, err = ReadLines(fileName)
+		if err != nil {
+			fmt.Println(err.Error())
+			os.Exit(1)
+		}
+	} else {
+		stdinInput := flag.Args()
+		//for i, item := range strings.Split(stdinInput[1], `\n`) {
+		//	fmt.Printf("%v : %s\n", i, item)
+		//}
+		//os.WriteFile("tmp.txt", []byte(stdinInput[1]), 0666)
+		//fmt.Println(stdinInput[1:])
+		//tmp := strings.Join(stdinInput[1:], ` `)
+		linesInput = strings.Split(stdinInput[1], "\n")
 	}
+
+	//fmt.Println(linesInput[0])
 
 	lines := make([]string, len(linesInput))
 

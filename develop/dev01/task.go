@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"github.com/beevik/ntp"
+	"os"
 )
 
 /*
@@ -17,14 +19,12 @@ import (
 */
 
 func main() {
-	m := map[string]int{"balls": 2}
-	fmt.Println(m["dick"])
-	//currentTime, err := ntp.Time("0.beevik-ntp.pool.ntp.org")
-	//
-	//if err != nil {
-	//	fmt.Fprint(os.Stderr, err.Error())
-	//	os.Exit(1)
-	//}
-	//
-	//fmt.Println(currentTime)
+	currentTime, err := ntp.Time("0.beevik-ntp.pool.ntp.org")
+
+	if err != nil {
+		fmt.Fprint(os.Stderr, err.Error())
+		os.Exit(1)
+	}
+
+	fmt.Println(currentTime)
 }

@@ -21,45 +21,15 @@ import (
 Программа должна проходить все тесты. Код должен проходить проверки go vet и golint.
 */
 
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
-
 var visited sync.Map
 
-//func WriteFile(fileName string, data string) error {
-//	file, err := os.Create(fileName)
-//	if err != nil {
-//		return err
-//	}
-//	defer file.Close()
-//	writer := bufio.NewWriter(file)
-//	if _, err := writer.WriteString(data); err != nil {
-//		return err
-//	}
-//	if err := writer.Flush(); err != nil {
-//		return err
-//	}
-//	return nil
-//}
-//
-//func GetTitle(data *string) string {
-//	re := regexp.MustCompile(`<title.*?>(.*)</title>`)
-//	title := re.FindAllStringSubmatch(*data, -1)
-//	if len(title) == 0 {
-//		return "empty_title_tag"
-//	} else {
-//		return title[0][1]
-//	}
-//
-//}
-
 var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+var r = rand.New(rand.New(rand.NewSource(time.Now().UnixNano())))
 
 func RandStringRunes(n int) string {
 	b := make([]rune, n)
 	for i := range b {
-		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+		b[i] = letterRunes[r.Intn(len(letterRunes))]
 	}
 	return string(b)
 }
@@ -84,8 +54,6 @@ func DownloadWorker(inputChan <-chan string, saveChan chan<- *DownloadedFile, rC
 					fmt.Println(err.Error())
 				}
 				body, err := io.ReadAll(resp.Body)
-				//h := resp.Header
-				//fmt.Println(h)
 				if err != nil {
 					fmt.Println(err.Error())
 				} else {
@@ -139,7 +107,7 @@ func WriteWorker(saveChan <-chan *DownloadedFile, dir string, m *sync.Mutex) {
 	fmt.Println("exiting from writer thread")
 }
 
-func ParseWorker(parseChan <-chan *DownloadedFile, dChan chan<- string, m *sync.Mutex) {
+func ParseWorker(parseChan <-chan *DownloadedFile, dChan chan<- string, m *sync.Mutex, mode bool) {
 	re := regexp.MustCompile(`https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)`)
 	for downloadedFile := range parseChan {
 		for _, item := range regexp.MustCompile(`(src="[\S]+\")`).FindAllString(string(downloadedFile.Body), -1) {
@@ -151,58 +119,27 @@ func ParseWorker(parseChan <-chan *DownloadedFile, dChan chan<- string, m *sync.
 			m.Lock()
 			fmt.Println("Trying to read: ", item)
 			m.Unlock()
-			//&& strings.Contains(item, downloadedFile.Link)
-			if re.MatchString(item) {
+			//&&
+			linkDownload := re.MatchString(item)
+			if mode {
+				linkDownload = linkDownload && strings.Contains(item, downloadedFile.Link)
+			}
+			if linkDownload {
 				dChan <- item
 			}
 			if !strings.Contains(item, `http://`) && !strings.Contains(item, `https://`) {
-				dChan <- fmt.Sprintf(`%s%s`, downloadedFile.Link, item)
+				b, a, _ := strings.Cut(item, `/`)
+				if len(b) == 0 {
+					dChan <- fmt.Sprintf(`%s%s`, downloadedFile.Link, a)
+				} else {
+					dChan <- fmt.Sprintf(`%s%s`, downloadedFile.Link, b)
+				}
+
 			}
 		}
 	}
 	fmt.Println("exiting from parser thread")
 }
-
-//func GetPage(client http.Client, link, path string) {
-//	re := regexp.MustCompile(`https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)`)
-//	link, _, _ = strings.Cut(link, `#`)
-//	if _, ok := visited[link]; re.MatchString(link) && !ok {
-//		fmt.Println("Reading: ", link)
-//		visited[link] = struct{}{}
-//		//path += regexp.MustCompile(`[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)`).FindString(link)
-//		resp, err := client.Get(link)
-//		if err != nil {
-//			fmt.Println(err.Error())
-//		}
-//		//for k := range resp.Header {
-//		//	fmt.Println(fmt.Sprintf("%s: %v", k, resp.Header[k]))
-//		//}
-//		defer resp.Body.Close()
-//		body, _ := io.ReadAll(resp.Body)
-//
-//		var fileName, rS string
-//		_, fileFormat, _ := strings.Cut(resp.Header[`Content-Type`][0], `/`)
-//		fileFormat, _, _ = strings.Cut(fileFormat, `;`)
-//		rS = RandStringRunes(25)
-//
-//		if fileFormat == `html` {
-//			for _, item := range regexp.MustCompile(`(src="[\S]+\")|(href="[\S]+\")`).FindAllString(string(body), -1) {
-//				time.Sleep(1 * time.Second)
-//				_, after, found := strings.Cut(item, `src="`)
-//				if !found {
-//					_, after, _ = strings.Cut(item, `href="`)
-//				}
-//				item = after[:len(after)-1]
-//				fmt.Println("Trying to read: ", item)
-//				if re.MatchString(item) {
-//					GetPage(client, item, path)
-//				} else {
-//					GetPage(client, fmt.Sprintf(`%s%s`, link, item), path)
-//				}
-//			}
-//		}
-//	}
-//}
 
 func main() {
 
@@ -211,11 +148,11 @@ func main() {
 	dwFlag := flag.Int(`download`, 1, `amount of download workers`)
 	wwFlag := flag.Int(`write`, 1, `amount of write workers`)
 	pwFlag := flag.Int(`parse`, 1, `amount of parse workers`)
+	oFlag := flag.Bool(`only-host`, true, `download mode`)
 
 	flag.Parse()
 
-	//url := flag.Arg(0)
-	url := `https://google.com`
+	url := flag.Arg(0)
 
 	if string(url[len(url)-1]) != `/` {
 		url += `/`
@@ -238,7 +175,7 @@ func main() {
 		go WriteWorker(saveChan, *dFlag, &m)
 	}
 	for i := 0; i < *pwFlag; i++ {
-		go ParseWorker(parseChan, inputChan, &m)
+		go ParseWorker(parseChan, inputChan, &m, *oFlag)
 	}
 
 	<-t.C
@@ -249,18 +186,5 @@ func main() {
 	close(parseChan)
 	time.Sleep(1 * time.Second)
 	fmt.Println("exiting from main thread")
-	//GetPage(client, `https://ilyazayats.github.io/WebProject/`, `ilyazayats`)
-	//if err := GetPage(client, "https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png", "google.com"); err != nil {
-	//	fmt.Println(err.Error())
-	//}
-	//resp, err := client.Get("https://google.com")
-	//if err != nil {
-	//	fmt.Println(err)
-	//	return
-	//}
-	//defer resp.Body.Close()
-	//body, _ := io.ReadAll(resp.Body)
-	//tmp := string(body)
-	//GetTitle(&tmp)
-	//io.Copy(os.Stdout, resp.Body)
+
 }
