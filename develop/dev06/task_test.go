@@ -40,7 +40,7 @@ func TestParseFFlagValue(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		want    []intcd
+		want    []int
 		want1   int
 		wantErr bool
 	}{
